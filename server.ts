@@ -2,8 +2,8 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { WebSocketServer, WebSocket } from 'ws';
-import { SMCEngine, Candle, Signal } from './lib/smc.ts';
-import { supabase } from './lib/supabase.ts';
+import { SMCEngine, Candle, Signal } from './lib/smc';
+import { supabase } from './lib/supabase';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
