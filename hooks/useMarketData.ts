@@ -27,6 +27,12 @@ export function useMarketData() {
           setSignals(message.data);
         } else if (message.type === 'SIGNAL') {
           setSignals(prev => [...prev, message.data]);
+        } else if (message.type === 'HISTORY') {
+          const { symbol, candles } = message.data;
+          setCandles(prev => ({
+            ...prev,
+            [symbol]: candles
+          }));
         } else if (message.type === 'TICK') {
           const { symbol, price, time } = message.data;
           
