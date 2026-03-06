@@ -1,13 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Activity, Database, Play, Settings, ShieldAlert, StopCircle, ArrowLeft } from 'lucide-react';
+import { Activity, Database, Play, Settings, ShieldAlert, StopCircle, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminPanel() {
   const [isRunning, setIsRunning] = useState(true);
   const [lookback, setLookback] = useState(5);
   const [riskReward, setRiskReward] = useState(3);
+  const [dbStatus, setDbStatus] = useState<'testing' | 'connected' | 'error'>('testing');
+  const [dbMessage, setDbMessage] = useState('');
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  const testConnection = async () => {
+    setDbStatus('testing');
+    try {
+      const { data, error } = await supabase.from('signals').select('id').limit(1);
+      if (error) throw error;
+      setDbStatus('connected');
+      setDbMessage('Connection successful.');
+    } catch (err: any) {
+      setDbStatus('error');
+      setDbMessage(err.message || 'Connection failed.');
+    }
+  };
+
+  useEffect(() => {
+    if (supabaseUrl && supabaseKey) {
+      testConnection();
+    } else {
+      setDbStatus('error');
+      setDbMessage('Missing credentials.');
+    }
+  }, [supabaseUrl, supabaseKey]);
+
+  const handleClearHistory = async () => {
+    if (!confirm('Are you sure you want to delete all signals and market data?')) return;
+    try {
+      await supabase.from('signals').delete().neq('id', '0');
+      await supabase.from('market_data').delete().neq('id', '0');
+      alert('History cleared successfully.');
+    } catch (error: any) {
+      alert(`Error clearing history: ${error.message}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-100 font-sans p-8">
@@ -53,7 +92,9 @@ export default function AdminPanel() {
               </div>
               <div className="flex justify-between items-center p-3 bg-black/30 rounded-lg border border-white/5">
                 <span className="text-zinc-400">Database (Supabase)</span>
-                <span className="text-amber-400 font-mono">PENDING SETUP</span>
+                {dbStatus === 'testing' && <span className="text-amber-400 font-mono animate-pulse">TESTING...</span>}
+                {dbStatus === 'connected' && <span className="text-emerald-400 font-mono">CONNECTED</span>}
+                {dbStatus === 'error' && <span className="text-rose-400 font-mono">ERROR</span>}
               </div>
             </div>
           </div>
@@ -111,18 +152,39 @@ export default function AdminPanel() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                 <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">NEXT_PUBLIC_SUPABASE_URL</div>
-                <div className="font-mono text-sm truncate opacity-50">Not configured</div>
+                <div className={`font-mono text-sm truncate ${supabaseUrl ? 'text-zinc-300' : 'opacity-50 text-rose-400'}`}>
+                  {supabaseUrl || 'Not configured'}
+                </div>
               </div>
               <div className="p-4 bg-black/30 rounded-xl border border-white/5">
                 <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</div>
-                <div className="font-mono text-sm truncate opacity-50">Not configured</div>
+                <div className={`font-mono text-sm truncate ${supabaseKey ? 'text-zinc-300' : 'opacity-50 text-rose-400'}`}>
+                  {supabaseKey ? '••••••••••••••••••••••••' : 'Not configured'}
+                </div>
               </div>
             </div>
+
+            <div className="mt-4 p-3 rounded-lg border flex items-center gap-2 text-sm font-mono
+              ${dbStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                dbStatus === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                'bg-amber-500/10 border-amber-500/20 text-amber-400'}">
+              {dbStatus === 'connected' && <CheckCircle2 className="w-4 h-4" />}
+              {dbStatus === 'error' && <XCircle className="w-4 h-4" />}
+              {dbStatus === 'testing' && <Activity className="w-4 h-4 animate-spin" />}
+              {dbMessage || 'Waiting to test connection...'}
+            </div>
+
             <div className="mt-4 flex gap-3">
-              <button className="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-mono hover:bg-emerald-500/30 transition-colors">
+              <button
+                onClick={testConnection}
+                className="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-mono hover:bg-emerald-500/30 transition-colors"
+              >
                 TEST CONNECTION
               </button>
-              <button className="px-4 py-2 bg-white/5 text-zinc-300 border border-white/10 rounded-lg text-sm font-mono hover:bg-white/10 transition-colors">
+              <button
+                onClick={handleClearHistory}
+                className="px-4 py-2 bg-white/5 text-zinc-300 border border-white/10 rounded-lg text-sm font-mono hover:bg-white/10 transition-colors"
+              >
                 CLEAR HISTORY
               </button>
             </div>
