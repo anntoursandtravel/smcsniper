@@ -2,7 +2,8 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { WebSocketServer, WebSocket } from 'ws';
-import { SMCEngine, Candle, Signal } from './lib/smc';
+import { SMCEngine, Candle, Signal } from './lib/smc.ts';
+import { supabase } from './lib/supabase.ts';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -77,10 +78,33 @@ function connectDeriv() {
 
         if (!currentCandles[symbol] || currentCandles[symbol].time !== minuteTime) {
           if (currentCandles[symbol]) {
-            engines[symbol].addCandle({ ...currentCandles[symbol] });
+            const closedCandle = { ...currentCandles[symbol] };
+            engines[symbol].addCandle(closedCandle);
             const signal = engines[symbol].checkForSignals(symbol);
+
+            // Persist market data to DB asynchronously
+            supabase.from('market_data').insert([
+              {
+                symbol,
+                time: closedCandle.time,
+                open: closedCandle.open,
+                high: closedCandle.high,
+                low: closedCandle.low,
+                close: closedCandle.close
+              }
+            ]).then(({ error }) => {
+              if (error) {
+                if (error.code !== '23505') { // Ignore unique violation on (symbol, time)
+                  console.error('Error saving market data to DB', error.message);
+                }
+              }
+            });
             if (signal) {
               signals.push(signal);
+              // Async insert to DB
+              supabase.from('signals').insert([signal]).then(({ error }) => {
+                if (error) console.error('Error saving signal to DB', error);
+              });
               broadcast({ type: 'SIGNAL', data: signal });
             }
           }
